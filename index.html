@@ -1,24 +1,65 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tab Switch Counter</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Advanced Tab Switch Counter</title>
+  <style>
+    body { font-family: Arial, sans-serif; }
+    h1 { color: #2c3e50; }
+    .log { font-size: 14px; color: #555; margin-top: 15px; }
+  </style>
 </head>
 <body>
-    <h1>Tab Switch Counter</h1>
-    <p>You have switched tabs <span id="tabSwitchCount">0</span> times.</p>
+  <h1>Tab Switch Counter</h1>
+  <p>You have switched tabs <span id="tabSwitchCount">0</span> times.</p>
+  <div class="log" id="log"></div>
 
-    <script>
-        let tabSwitchCount = 0;
+  <script>
+    let tabSwitchCount = 0;
+    const counterEl = document.getElementById("tabSwitchCount");
+    const logEl = document.getElementById("log");
 
-        document.addEventListener("visibilitychange", () => {
-            if (document.hidden) {
-            } else {
-                tabSwitchCount++;
-                document.getElementById("tabSwitchCount").innerText = tabSwitchCount;
-            }
-        });
-    </script>
+    function increment(reason) {
+      tabSwitchCount++;
+      counterEl.innerText = tabSwitchCount;
+      logEl.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Tab switch detected (${reason})</div>`;
+    }
+
+    // 1. Visibility API
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) increment("visibilitychange");
+    });
+
+    // 2. Window focus/blur
+    window.addEventListener("focus", () => increment("window focus"));
+    window.addEventListener("blur", () => increment("window blur"));
+
+    // 3. Page show/hide (back-forward cache & reload aware)
+    window.addEventListener("pageshow", () => increment("pageshow"));
+    window.addEventListener("pagehide", () => increment("pagehide"));
+
+    // 4. Page Lifecycle API (Chrome-based browsers)
+    document.addEventListener("freeze", () => console.log("Tab frozen"));
+    document.addEventListener("resume", () => increment("page lifecycle resume"));
+
+    // 5. Animation Frame (detect pause in inactive tab)
+    let last = performance.now();
+    function rafChecker(now) {
+      if (now - last > 2000) { // long gap means tab was inactive
+        increment("requestAnimationFrame gap");
+      }
+      last = now;
+      requestAnimationFrame(rafChecker);
+    }
+    requestAnimationFrame(rafChecker);
+
+    // 6. Mouse pointer leaves window (hacky detection)
+    window.addEventListener("mouseout", e => {
+      if (!e.relatedTarget && !e.toElement) {
+        increment("mouse left window (possible tab switch)");
+      }
+    });
+  </script>
 </body>
 </html>
