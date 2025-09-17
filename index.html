@@ -3,19 +3,100 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Advanced Tab Switch Counter</title>
+  <title>Advanced Tab Switch Counter + Media Test</title>
   <style>
-    body { font-family: Arial, sans-serif; }
-    h1 { color: #2c3e50; }
-    .log { font-size: 14px; color: #555; margin-top: 15px; }
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: space-between;
+      padding: 20px;
+      background: #f4f6f9;
+    }
+    
+    .left, .right {
+      width: 48%;
+      background: #fff;
+      padding: 20px;
+      margin: 0px 10px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    h1, h2 {
+      color: #2c3e50;
+    }
+    .log {
+      font-size: 14px;
+      color: #555;
+      margin-top: 15px;
+      max-height: 200px;
+      overflow-y: auto;
+      border-top: 1px solid #ddd;
+      padding-top: 10px;
+    }
+    video {
+      width: 100%;
+      border-radius: 8px;
+      margin-top: 10px;
+      background: #000;
+    }
+    canvas {
+      width: 100%;
+      height: 40px;
+      background: #eee;
+      border-radius: 6px;
+      margin-top: 10px;
+    }
+    button {
+      margin-top: 15px;
+      padding: 10px 15px;
+      border: none;
+      background: #3498db;
+      color: #fff;
+      font-weight: bold;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #2980b9;
+    }
+
+    /* 📱 Mobile View */
+    @media (max-width: 500px) {
+      body {
+        flex-direction: column; /* stack items */
+      }
+      .left, .right {
+        width: 100%; /* take full width */
+        margin: 10px 0;
+      }
+      .left {
+        order: 1; /* top */
+      }
+      .right {
+        order: 2; /* bottom */
+      }
+    }
   </style>
 </head>
 <body>
-  <h1>Tab Switch Counter</h1>
-  <p>You have switched tabs <span id="tabSwitchCount">0</span> times.</p>
-  <div class="log" id="log"></div>
+  <!-- Left Section -->
+  <div class="left">
+    <h1>Tab Switch Counter</h1>
+    <p>You have switched tabs <span id="tabSwitchCount">0</span> times.</p>
+    <div class="log" id="log"></div>
+  </div>
+
+  <!-- Right Section -->
+  <div class="right">
+    <h2>Camera & Audio Test</h2>
+    <button id="startTest">Start Test</button>
+    <video id="video" autoplay muted playsinline></video>
+    <canvas id="audioCanvas"></canvas>
+  </div>
 
   <script>
+
+    // TAB SWITCH COUNTER SECTION
     let tabSwitchCount = 0;
     const counterEl = document.getElementById("tabSwitchCount");
     const logEl = document.getElementById("log");
@@ -24,6 +105,7 @@
       tabSwitchCount++;
       counterEl.innerText = tabSwitchCount;
       logEl.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Tab switch detected (${reason})</div>`;
+      logEl.scrollTop = logEl.scrollHeight;
     }
 
     // 1. Visibility API
@@ -35,31 +117,67 @@
     window.addEventListener("focus", () => increment("window focus"));
     window.addEventListener("blur", () => increment("window blur"));
 
-    // 3. Page show/hide (back-forward cache & reload aware)
+    // 3. Page show/hide
     window.addEventListener("pageshow", () => increment("pageshow"));
     window.addEventListener("pagehide", () => increment("pagehide"));
 
-    // 4. Page Lifecycle API (Chrome-based browsers)
-    document.addEventListener("freeze", () => console.log("Tab frozen"));
+    // 4. Lifecycle API (Chrome)
     document.addEventListener("resume", () => increment("page lifecycle resume"));
 
-    // 5. Animation Frame (detect pause in inactive tab)
+    // 5. requestAnimationFrame detection
     let last = performance.now();
     function rafChecker(now) {
-      if (now - last > 2000) { // long gap means tab was inactive
-        increment("requestAnimationFrame gap");
-      }
+      if (now - last > 2000) increment("requestAnimationFrame gap");
       last = now;
       requestAnimationFrame(rafChecker);
     }
     requestAnimationFrame(rafChecker);
 
-    // 6. Mouse pointer leaves window (hacky detection)
+    // 6. Mouse leaves window
     window.addEventListener("mouseout", e => {
       if (!e.relatedTarget && !e.toElement) {
         increment("mouse left window (possible tab switch)");
       }
     });
+
+    // CAMERA & AUDIO TEST SECTION
+    const startBtn = document.getElementById("startTest");
+    const videoEl = document.getElementById("video");
+    const audioCanvas = document.getElementById("audioCanvas");
+    const ctx = audioCanvas.getContext("2d");
+
+    let audioAnalyser, dataArray;
+
+    startBtn.addEventListener("click", async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        videoEl.srcObject = stream;
+
+        // Setup Audio Analyser
+        const audioCtx = new AudioContext();
+        const source = audioCtx.createMediaStreamSource(stream);
+        audioAnalyser = audioCtx.createAnalyser();
+        audioAnalyser.fftSize = 256;
+        dataArray = new Uint8Array(audioAnalyser.frequencyBinCount);
+        source.connect(audioAnalyser);
+
+        drawAudioLevel();
+      } catch (err) {
+        alert("Error accessing camera/microphone: " + err.message);
+      }
+    });
+
+    function drawAudioLevel() {
+      requestAnimationFrame(drawAudioLevel);
+      if (!audioAnalyser) return;
+
+      audioAnalyser.getByteFrequencyData(dataArray);
+      const volume = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+
+      ctx.clearRect(0, 0, audioCanvas.width, audioCanvas.height);
+      ctx.fillStyle = "#3498db";
+      ctx.fillRect(0, 0, (volume / 255) * audioCanvas.width, audioCanvas.height);
+    }
   </script>
 </body>
 </html>
